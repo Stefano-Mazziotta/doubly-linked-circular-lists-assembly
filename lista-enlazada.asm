@@ -1,17 +1,17 @@
 .data
 menu: 			.ascii "Colecciones de objetos categorizados\n"
-			.ascii "====================================\n"
-			.ascii "1-Nueva categoria\n"
-			.ascii "2-Siguiente categoria\n"
-			.ascii "3-Categoria anterior\n"
-			.ascii "4-Listar categorias\n"
-			.ascii "5-Borrar categoria actual\n"
-			.ascii "6-Anexar objeto a la categoria actual\n"
-			.ascii "7-Listar objetos de la categoria\n"
-			.ascii "8-Borrar objeto de la categoria\n"
+            .ascii "====================================\n"
+            .ascii "1-Nueva categoria\n"
+            .ascii "2-Siguiente categoria\n"
+            .ascii "3-Categoria anterior\n"
+            .ascii "4-Listar categorias\n"
+            .ascii "5-Borrar categoria actual\n"
+            .ascii "6-Anexar objeto a la categoria actual\n"
+            .ascii "7-Listar objetos de la categoria\n"
+            .ascii "8-Borrar objeto de la categoria\n"
 			.ascii "0-Salir\n"
-			.asciiz "Ingrese la opcion deseada: "
-			
+            .asciiz "Ingrese la opcion deseada: "
+            
 error: 			.asciiz "Error: "
 return: 		.asciiz "\n"
 categoryNameMsg: 	.asciiz "\nIngrese el nombre de una categoria: "
@@ -21,31 +21,31 @@ objectNameMsg: 		.asciiz "\nIngrese el nombre de un objeto: "
 successMsg: 		.asciiz "La operación se realizo con exito\n\n"
 
 slist: 			.word 0  # Lista de nodos libres
-cclist: 		.word 0  # Lista de categorías
-wclist: 		.word 0  # Lista de trabajo (categoría actual)
+cclist: 		.word 0  # puntero a lista de categorías
+wclist: 		.word 0  # puntero a lista de trabajo (categoría actual)
 scheduler: 		.space 32  # Espacio para el vector de funciones del scheduler
 
 .text
 main: 	
-    la      $t0, scheduler  # Cargar la dirección del vector de funciones del scheduler en $t0
-    la      $t1, exit   # Cargar la dirección de la función newcategory en $t1
-    sw      $t1, 0($t0)  # Almacenar la dirección de newcategory en el vector de funciones
+    la      $t7, scheduler  # Cargar la dirección del scheduler en $t0
+    la      $t1, exit   # Cargar la dirección de la función exit en $t1
+    sw      $t1, 0($t7)  # Almacenar la dirección de exit en el vector de funciones
     la      $t1, new_category 
-    sw      $t1, 4($t0)  
+    sw      $t1, 4($t7)  
     la      $t1, next_category 
-    sw      $t1, 8($t0)
+    sw      $t1, 8($t7)
     la      $t1, previous_category
-    sw      $t1, 12($t0)
+    sw      $t1, 12($t7)
     la      $t1, show_categories
-    sw      $t1, 16($t0)
+    sw      $t1, 16($t7)
     la      $t1, delete_category
-    sw      $t1, 20($t0)
+    sw      $t1, 20($t7)
     la      $t1, add_object
-    sw      $t1, 24($t0)
+    sw      $t1, 24($t7)
     la      $t1, show_objects
-    sw      $t1, 28($t0)
+    sw      $t1, 28($t7)
     la      $t1, delete_object 
-    sw      $t1, 32($t0)
+    sw      $t1, 32($t7)
     
     j show_menu
     
@@ -63,8 +63,8 @@ show_menu:
     bgt     $t2, 8, invalid_option
 
     # Calcular la dirección de la función a llamar
-    sll     $t2, $t2, 2  # Multiplicar la opción por 4 (tamaño de palabra)
-    add     $t3, $t0, $t2  # Calcular la dirección de la función en el vector
+    sll     $t2, $t2, 2  # Desplazar a la izquierda la opción 2 bits (equivale a multiplicar por 4)
+    add     $t3, $t7, $t2  # Calcular la dirección de la función en el vector
     lw      $t4, 0($t3)  # Cargar la dirección de la función
 
     # Llamar a la función
@@ -91,7 +91,7 @@ smalloc:
     beqz	$t0, sbrk  # Si no hay nodos libres, saltar a sbrk
     move 	$v0, $t0  # Mover la dirección del nodo libre a $v0
     lw 		$t0, 12($t0)  # Cargar la dirección del siguiente nodo libre en $t0
-    sw 		$t0, slist  # Axctualizar la lista de nodos libres
+    sw 		$t0, slist  # Actualizar la lista de nodos libres
     jr 		$ra  # Retornar de la subrutina
 
 sbrk:
@@ -118,14 +118,12 @@ new_category:
     lw 		$t0, wclist  # Cargar la dirección de la lista de trabajo en $t0
     bnez 	$t0, new_category_end  # Si la lista de trabajo no está vacía, saltar a newcategory_end
     sw 		$v0, wclist  # Actualizar la lista de trabajo con la nueva categoría
+    sw 		$v0, cclist  # Establecer la nueva categoría como la primera en la lista
 new_category_end:
-    li 		$v0, 0  # Establecer $v0 en 0 (éxito)
     lw 		$ra, 4($sp)  # Restaurar el valor de $ra desde la pila
     addiu	$sp, $sp, 4  # Liberar espacio en la pila
     jr 		$ra  # Retornar de la subrutina
-    # a0: list address
-    # a1: NULL if category, node address if object
-    # v0: node address added
+
 next_category:
     # Implementar la lógica para siguiente categoría
     la      $a0, successMsg
@@ -179,7 +177,7 @@ exit:
     # Salir del programa
     li      $v0, 10
     syscall
-	
+    
 add_node:
     addi 	$sp, $sp, -8 # Reservar espacio en la pila
     sw 		$ra, 8($sp)  # Guardar el valor de $ra en la pila
@@ -192,7 +190,7 @@ add_node:
     beqz 	$t0, add_node_empty_list  # Si la lista está vacía, saltar a addnode_empty_list
 
 add_node_to_end:
-    lw 		$t1, ($t0)  # Cargar la dirección del último nodo en $t1
+    lw 		$t1, 12($t0)  # Cargar la dirección del último nodo en $t1
     sw 		$t1, 0($v0)  # Establecer el puntero anterior del nuevo nodo
     sw 		$t0, 12($v0)  # Establecer el puntero siguiente del nuevo nodo
     sw	 	$v0, 12($t1)  # Actualizar el puntero siguiente del último nodo
@@ -208,8 +206,7 @@ add_node_exit:
     lw 		$ra, 8($sp)  # Restaurar el valor de $ra desde la pila
     addi 	$sp, $sp, 8  # Liberar espacio en la pila
     jr 		$ra  # Retornar de la subrutina
-    # a0: node address to delete
-    # a1: list address where node is deleted
+
 delete_node:
     addi 	$sp, $sp, -8  # Reservar espacio en la pila
     sw 		$ra, 8($sp)  # Guardar el valor de $ra en la pila
@@ -239,8 +236,6 @@ delete_node_exit:
     lw		$ra, 8($sp)  # Restaurar el valor de $ra desde la pila
     addi	$sp, $sp, 8  # Liberar espacio en la pila
     jr		$ra  # Retornar de la subrutina
-    # a0: msg to ask
-    # v0: block address allocated with string
 
 get_block:
     addi	$sp, $sp, -4  # Reservar espacio en la pila
@@ -256,4 +251,3 @@ get_block:
     lw		$ra, 4($sp)  # Restaurar el valor de $ra desde la pila
     addi	$sp, $sp, 4  # Liberar espacio en la pila
     jr		$ra  # Retornar de la subrutina
-    
