@@ -1,21 +1,17 @@
 .data
-slist: 			.word 0  # Lista de nodos libres
-cclist: 		.word 0  # Lista de categorías
-wclist: 		.word 0  # Lista de trabajo (categoría actual)
-scheduler: 		.space 32  # Espacio para el vector de funciones del scheduler
-menu: 			.asciiz "Colecciones de objetos categorizados\n"
-        		.asciiz "====================================\n"
- 	       		.asciiz "1-Nueva categoria\n"
-        		.asciiz "2-Siguiente categoria\n"
- 	        	.asciiz "3-Categoria anterior\n"
-        		.asciiz "4-Listar categorias\n"
- 	        	.asciiz "5-Borrar categoria actual\n"
-        		.asciiz "6-Anexar objeto a la categoria actual\n"
-  		        .asciiz "7-Listar objetos de la categoria\n"
-  	     	 	.asciiz "8-Borrar objeto de la categoria\n"
- 	      	 	.asciiz "0-Salir\n"
-        		.asciiz "Ingrese la opcion deseada: "
-menu_count: 		.word 11  # Número de líneas en el menú (incluyendo las descripciones)
+menu: 			.ascii "Colecciones de objetos categorizados\n"
+			.ascii "====================================\n"
+			.ascii "1-Nueva categoria\n"
+			.ascii "2-Siguiente categoria\n"
+			.ascii "3-Categoria anterior\n"
+			.ascii "4-Listar categorias\n"
+			.ascii "5-Borrar categoria actual\n"
+			.ascii "6-Anexar objeto a la categoria actual\n"
+			.ascii "7-Listar objetos de la categoria\n"
+			.ascii "8-Borrar objeto de la categoria\n"
+			.ascii "0-Salir\n"
+			.asciiz "Ingrese la opcion deseada: "
+			
 error: 			.asciiz "Error: "
 return: 		.asciiz "\n"
 categoryNameMsg: 	.asciiz "\nIngrese el nombre de una categoria: "
@@ -24,27 +20,32 @@ objectIdMsg: 		.asciiz "\nIngrese el ID del objeto a eliminar: "
 objectNameMsg: 		.asciiz "\nIngrese el nombre de un objeto: "
 successMsg: 		.asciiz "La operación se realizo con exito\n\n"
 
+slist: 			.word 0  # Lista de nodos libres
+cclist: 		.word 0  # Lista de categorías
+wclist: 		.word 0  # Lista de trabajo (categoría actual)
+scheduler: 		.space 32  # Espacio para el vector de funciones del scheduler
+
 .text
 main: 	
     la      $t0, scheduler  # Cargar la dirección del vector de funciones del scheduler en $t0
-    la      $t1, new_category  # Cargar la dirección de la función newcategory en $t1
+    la      $t1, exit   # Cargar la dirección de la función newcategory en $t1
     sw      $t1, 0($t0)  # Almacenar la dirección de newcategory en el vector de funciones
-    la      $t1, next_category  # Cargar la dirección de la función nextcategory en $t1
-    sw      $t1, 4($t0)  # Almacenar la dirección de nextcategory en el vector de funciones
-    la      $t1, previous_category  # Cargar la dirección de la función prevcategory en $t1
-    sw      $t1, 8($t0)  # Almacenar la dirección de prevcategory en el vector de funciones
-    la      $t1, show_categories  # Cargar la dirección de la función listcategories en $t1
-    sw      $t1, 12($t0)  # Almacenar la dirección de listcategories en el vector de funciones
-    la      $t1, delete_category  # Cargar la dirección de la función deletecategory en $t1
-    sw      $t1, 16($t0)  # Almacenar la dirección de deletecategory en el vector de funciones
-    la      $t1, add_object  # Cargar la dirección de la función addobject en $t1
-    sw      $t1, 20($t0)  # Almacenar la dirección de addobject en el vector de funciones
-    la      $t1, show_objects  # Cargar la dirección de la función listobjects en $t1
-    sw      $t1, 24($t0)  # Almacenar la dirección de listobjects en el vector de funciones
-    la      $t1, delete_object  # Cargar la dirección de la función deleteobject en $t1
-    sw      $t1, 28($t0)  # Almacenar la dirección de deleteobject en el vector de funciones
-    la      $t1, exit  # Cargar la dirección de la función exit en $t1
-    sw      $t1, 32($t0)  # Almacenar la dirección de exit en el vector de funciones
+    la      $t1, new_category 
+    sw      $t1, 4($t0)  
+    la      $t1, next_category 
+    sw      $t1, 8($t0)
+    la      $t1, previous_category
+    sw      $t1, 12($t0)
+    la      $t1, show_categories
+    sw      $t1, 16($t0)
+    la      $t1, delete_category
+    sw      $t1, 20($t0)
+    la      $t1, add_object
+    sw      $t1, 24($t0)
+    la      $t1, show_objects
+    sw      $t1, 28($t0)
+    la      $t1, delete_object 
+    sw      $t1, 32($t0)
     
     j show_menu
     
@@ -78,6 +79,11 @@ invalid_option:
     li      $a0, 101
     li      $v0, 1
     syscall
+    
+    la      $a0, return
+    li      $v0, 4
+    syscall
+    
     j       show_menu
             
 smalloc:
