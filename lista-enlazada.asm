@@ -47,32 +47,27 @@ main:
     la      $t1, delete_object 
     sw      $t1, 32($t7)
     
-    la	    $t6, wclist # puntero a categoria actual
-    la	    $s0, slist  # puntero a nodos libres
-    la      $s1, cclist # puntero al primer elemento de la lista de categorias
-    
     j show_menu
     
 show_menu:
     la      $a0, menu
-    li      $v0, 4 # print menu
+    li      $v0, 4 		# print menu
     syscall
 
-    li      $v0, 5  # Leer entero
+    li      $v0, 5  		# Leer entero
     syscall
-    move    $t2, $v0  # Guardar la opción del usuario en $t2
+    move    $t2, $v0 	 	# Guardar la opción del usuario en $t2
 
     # Verificar si la opción es válida (0-8)
     blt     $t2, 0, invalid_option
     bgt     $t2, 8, invalid_option
 
     # Calcular la dirección de la función a llamar
-    sll     $t2, $t2, 2  # Desplazar a la izquierda la opción 2 bits (equivale a multiplicar por 4)
-    add     $t3, $t7, $t2  # Calcular la dirección de la función en el vector
-    lw      $t4, 0($t3)  # Cargar la dirección de la función
+    sll     $t2, $t2, 2  	# Desplazar a la izquierda la opción 2 bits (equivale a multiplicar por 4)
+    add     $t3, $t7, $t2  	# Calcular la dirección de la función en el vector
+    lw      $t4, 0($t3)  	# Cargar la dirección de la función
 
-    # Llamar a la función
-    jalr    $t4
+    jalr    $t4			# Llamar a la función
 
     j       show_menu
 
@@ -127,20 +122,79 @@ new_category_end:
     lw 		$ra, 4($sp)  # Restaurar el valor de $ra desde la pila
     addiu	$sp, $sp, 4  # Liberar espacio en la pila
     jr 		$ra  # Retornar de la subrutina
-
+ 
+# pasar a la categoría siguiente
 select_next_category:
-    # Implementar la lógica para seleccionar la siguiente categoría
-    la      $a0, successMsg
-    li      $v0, 4
-    syscall
-    jr      $ra
+    # Si no hay categorías, error 201	
+    lw      	$t0, cclist
+    beq     	$t0, $zero, error_select_no_categories
 
-select_previous_category:
-    # Implementar la lógica para categoría anterior
-    la      $a0, successMsg
-    li      $v0, 4
+    # Si hay una sola categoría, error 202    
+    # Si la dirección siguiente es igual a la categoria actual, poseo una única categoría.
+    lw		$t1, wclist
+    lw    	$t2, 12($t1)    
+    beq	  	$t1, $t2, error_select_one_category 
+    
+    sw      	$t2, wclist
+
+    la      	$a0, successMsg
+    li    	$v0, 4
     syscall
-    jr      $ra
+    
+    jr      	$ra
+    
+# pasar a la categoría anterior
+select_previous_category:
+        # Si no hay categorías, error 201	
+    lw      	$t0, cclist
+    beq     	$t0, $zero, error_select_no_categories
+
+    # Si hay una sola categoría, error 202 
+    # Si la dirección del antecesor es igual a la categoria actual, poseo una única categoría.
+    lw		$t1, wclist
+    lw    	$t2, 0($t1)    
+    beq	  	$t1, $t2, error_select_one_category 
+    
+    sw      	$t2, wclist
+
+    la      	$a0, successMsg
+    li    	$v0, 4
+    syscall
+    
+    jr      	$ra
+
+
+error_select_no_categories:
+    la      	$a0, error            	# Cargar el mensaje de error
+    li      	$v0, 4                	# Código de syscall para imprimir cadena
+    syscall
+
+    li      	$a0, 201              	# Código de error 201
+    li      	$v0, 1                	# Código de syscall para imprimir entero
+    syscall
+    
+    la      	$a0, return
+    li      	$v0, 4
+    syscall
+    
+    jr      	$ra
+
+error_select_one_category:
+    la      	$a0, error            	# Cargar el mensaje de error
+    li      	$v0, 4                	# Código de syscall para imprimir cadena
+    syscall
+
+    li		$a0, 202           	# Código de error 202
+    li      	$v0, 1                	# Código de syscall para imprimir entero
+    syscall
+    
+    # Mostrar nueva línea
+    la      	$a0, return
+    li      	$v0, 4
+    syscall
+    
+    jr      	$ra
+			
 
 # 1. Cargar el puntero a la lista de categorías.
 # 2. Verificar si la lista está vacía.
@@ -155,7 +209,7 @@ show_categories:
 
     # 4. Si la lista no está vacía, recorrer la lista y mostrar cada categoría.
     lw      $t1, wclist       
-    move    $t2, $t0          # Inicializar el puntero de recorrido con el inicio de la lista
+    move    $t2, $t0        # Inicializar el puntero de recorrido con el inicio de la lista
 
     # Guardar el primer nodo para detectar el ciclo
     move    $t3, $t0
