@@ -19,10 +19,12 @@ selectedCategoryMsg:	.asciiz "\nSe ha seleccionado la categoria:"
 objectIdMsg: 		.asciiz "\nIngrese el ID del objeto a eliminar: "
 objectNameMsg: 		.asciiz "\nIngrese el nombre de un objeto: "
 successMsg: 		.asciiz "La operación se realizo con exito\n\n"
+ingreseString: 		.asciiz "\nIngrese un nuevo titulo: "
 
 slist: 			.word 0  # Lista de nodos libres
 cclist: 		.word 0  # puntero a lista de categorías
 wclist: 		.word 0  # puntero a lista de trabajo (categoría actual)
+buffer: 		.space 16
 scheduler: 		.space 32  # Espacio para el vector de funciones del scheduler
 
 .text
@@ -40,7 +42,7 @@ main:
     sw      $t1, 16($t7)
     la      $t1, delete_category
     sw      $t1, 20($t7)
-    la      $t1, add_object
+    la      $t1, new_object
     sw      $t1, 24($t7)
     la      $t1, show_objects
     sw      $t1, 28($t7)
@@ -203,84 +205,126 @@ error_select_one_category:
 # 5. Marcar la categoría seleccionada con ">".
 show_categories:
     # 1. Cargar el puntero a la lista de categorías.
-    lw      $t0, cclist
+    lw      	$t0, cclist
     # 2. Verificar si la lista está vacía.
-    beq     $t0, $zero, no_categories  # Si la lista está vacía, ir a no_categories
+    beq     	$t0, $zero, no_categories  # Si la lista está vacía, ir a no_categories
 
     # 4. Si la lista no está vacía, recorrer la lista y mostrar cada categoría.
-    lw      $t1, wclist       
-    move    $t2, $t0        # Inicializar el puntero de recorrido con el inicio de la lista
+    lw      	$t1, wclist       
+    move    	$t2, $t0        # Inicializar el puntero de recorrido con el inicio de la lista
 
     # Guardar el primer nodo para detectar el ciclo
-    move    $t3, $t0
+    move    	$t3, $t0
 
 show_loop:
     # 5. Marcar la categoría seleccionada con ">"
-    beq     $t2, $t1, show_selected
+    beq     	$t2, $t1, show_selected
 
-    lw      $a0, 8($t2)  # Cargar el nombre de la categoría
-    li      $v0, 4       # Código de syscall para imprimir cadena
+    lw      	$a0, 8($t2)  # Cargar el nombre de la categoría
+    li      	$v0, 4       # Código de syscall para imprimir cadena
     syscall
     
     # Mostrar nueva línea
-    la      $a0, return
-    li      $v0, 4
+    la      	$a0, return
+    li      	$v0, 4
     syscall
 
-    j       next_category
+    j       	next_category
 
 show_selected:
     # Mostrar el símbolo ">"
-    li      $a0, '>'
-    li      $v0, 11               # Código de syscall para imprimir carácter
+    li      	$a0, '>'
+    li      	$v0, 11               # Código de syscall para imprimir carácter
     syscall
     
-    lw      $a0, 8($t2)  # Cargar el nombre de la categoría
-    li      $v0, 4       # Código de syscall para imprimir cadena
+    lw      	$a0, 8($t2)  # Cargar el nombre de la categoría
+    li      	$v0, 4       # Código de syscall para imprimir cadena
     syscall
     
     # Mostrar nueva línea
-    la      $a0, return
-    li      $v0, 4
+    la      	$a0, return
+    li      	$v0, 4
     syscall
 
 next_category:
-    lw      $t2, 12($t2)  	# Cargar la dirección de la siguiente categoría en $t2
-    beq     $t2, $t3, end_show  # Si hemos llegado al primer nodo, salir del ciclo
-    j       show_loop       # Continuar al siguiente nodo
+    lw      	$t2, 12($t2)  	# Cargar la dirección de la siguiente categoría en $t2
+    beq     	$t2, $t3, end_show  # Si hemos llegado al primer nodo, salir del ciclo
+    j       	show_loop       # Continuar al siguiente nodo
 
 end_show:
-    jr      $ra  # Retornar de la subrutina
+    jr      	$ra  # Retornar de la subrutina
 
 no_categories:
-    la      $a0, error            # Cargar el mensaje de error
-    li      $v0, 4                # Código de syscall para imprimir cadena
+    la      	$a0, error            # Cargar el mensaje de error
+    li      	$v0, 4                # Código de syscall para imprimir cadena
     syscall
 
-    li      $a0, 301              # Código de error 301
-    li      $v0, 1                # Código de syscall para imprimir entero
+    li      	$a0, 301              # Código de error 301
+    li      	$v0, 1                # Código de syscall para imprimir entero
     syscall
     
     # Mostrar nueva línea
-    la      $a0, return
-    li      $v0, 4
+    la      	$a0, return
+    li      	$v0, 4
     syscall
     
-    jr      $ra
+    jr      	$ra
 
 delete_category:
-    # Implementar la lógica para borrar categoría actual
+		
+    addi 		$sp, $sp, -8
+    sw 			$ra, 4($sp)
+    sw			$s0, 0($sp)
+    
+    lw			$s0, wclist			# Guardar nodo seleccionado en $s0
+    lw			$s1, cclist			# Guardar lista en $s1
+    
+    beqz		$s0, _borrar_cat	# si es vacia, volver
+    
+    lw			$t0, 0($s0)		# Guardar en $t0 la dir al nodo anterior
+    lw			$t1, 12($s0)		# Guardar en $t1 la dir al nodo siguiente
+    sw			$t0, 0($t1)		# $t1->ant = $t0
+    sw			$t1, 12($t0)		# $t0->sig = $t1
+    move		$s2, $t0			# Guardar valor de nodo->ant en s2
+    move		$s3, $t1			# Guardar valor de nodo->sig en s3
+    
+    lw			$a0, 8($s0)
+    jal			sfree				# liberar espacio del string 
+    move		$a0, $s0			
+    jal			sfree				# liberar espacio del nodo
+    
+    bne			$s0, $s1, borrar_noprim		# si no es el primero de la lista, ir a borrar_noprim
+    bne			$s2, $s3, borrar_prim		# si no es el unico elemento de la lista, ir a borrar_prim
+    
+    
+    sw			$0, wclist
+    sw			$0, cclist
+    
+    j 			_borrar_cat
+		
+		
+borrar_prim:
+    sw			$t1, cclist
+    j 			_borrar_cat
+		
+borrar_noprim:	
+    sw			$t1, wclist
+	
+	
+_borrar_cat:
+    lw			$s0, 0($sp)
+    lw 			$ra, 4($sp)
+    addi 		$sp, $sp, 8
+    
+    jr			$ra
+
+new_object:
+# Implementar la lógica para listar objetos de la categoría
     la      $a0, successMsg
     li      $v0, 4
     syscall
     jr      $ra
 
-add_object:
-    # Implementar la lógica para anexar objeto a la categoría actual
-    la      $a0, successMsg
-    li      $v0, 4
-    syscall
-    jr      $ra
 
 show_objects:
     # Implementar la lógica para listar objetos de la categoría
