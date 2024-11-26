@@ -393,8 +393,6 @@ read_string:
     
     jr      $ra                # Retornar de la subrutina
 
-
-
 show_objects:
     addi    $sp, $sp, -8
     sw      $ra, 4($sp)
@@ -434,6 +432,75 @@ show_objects_exit:
     
     jr       $ra
     
+delete_object:
+    addi    $sp, $sp, -8
+    sw      $ra, 4($sp)
+    sw      $s0, 0($sp)
+    
+    lw      $s2, wclist          # $s2 = nodo seleccionado
+    
+    beqz    $s2, delete_object_exit     # si el nodo seleccionado es vacio, volver al menu
+    
+    lw      $s0, 4($s2)          # $s0 = dir al primer nodo
+    
+    beqz    $s0, delete_object_exit     # si hay nodo seleccionado, pero su lista de objetos es vacia, volver al menu
+    
+    move    $t0, $s0             # $t0 = nodo index
+    
+    beqz    $s0, delete_object_exit     # Si la lista es vacia, volver
+    
+    la      $a0, objectIdMsg
+    jal     print_string
+
+    jal     read_word
+    move    $t1, $v0
+    
+loop_borrar_obj:
+    lw      $t2, 8($t0)
+    beq     $t1, $t2, _loop_borrar_obj
+    
+    lw      $t0, 12($t0)
+    
+    beq     $t0, $s0, delete_object_exit
+
+    j       loop_borrar_obj
+
+_loop_borrar_obj:
+    move    $s1, $t0             # Guardar nodo a borrar en $s1
+    lw      $t0, 0($s1)          # Guardar en $t0 la dir al nodo anterior
+    lw      $t1, 12($s1)         # Guardar en $t1 la dir al nodo siguiente
+    sw      $t0, 0($t1)          # $t1->ant = $t0
+    sw      $t1, 12($t0)         # $t0->sig = $t1
+    
+    move    $s3, $t0             # Guardar nodo->ant en $s3
+    move    $s4, $t1             # Guardar nodo->sig en $s4
+    
+    lw      $a0, 4($s1)
+    jal     sfree                # liberar espacio del string 
+    la      $a0, 8($s1)          
+    jal     sfree                # liberar espacio de ID
+
+    move    $a0, $s1            
+    jal     sfree                # liberar espacio del nodo
+    
+    bne     $s0, $s1, delete_object_exit       # si no es el primero de la lista, ir al final
+    bne     $s3, $s4, borrar_prim_obj    # si no es el unico elemento de la lista, ir a borrar_prim_obj
+    
+    sw      $0, 8($s2)                   # nodo_seleccionado->objetos = NULL
+    sw      $s2, wclist                  
+    
+    j       delete_object_exit
+    
+borrar_prim_obj:
+    sw      $t1, 8($t0)                  # Si es el primero, ahora el siguiente es el primero
+
+delete_object_exit:
+    lw      $s0, 0($sp)
+    lw      $ra, 4($sp)
+    addi    $sp, $sp, 8
+    
+    jr       $ra
+    
 print_string:
     # Asumimos que $a0 contiene la dirección de la cadena
     li      $v0, 4
@@ -449,7 +516,14 @@ print_char:
     li			$v0, 11
     syscall
     jr			$ra
-
+    
+# READ_WORD
+# lee un input numerico del usuario
+read_word:
+    li 		$v0, 5
+    syscall
+		
+    jr		$ra
 
 exit:
     # Salir del programa
