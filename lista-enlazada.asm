@@ -19,8 +19,8 @@ selectedCategoryMsg:	.asciiz "\nSe ha seleccionado la categoria:"
 objectIdMsg: 		.asciiz "\nIngrese el ID del objeto a eliminar: "
 objectNameMsg: 		.asciiz "\nIngrese el nombre de un objeto: "
 successMsg: 		.asciiz "La operación se realizo con exito\n\n"
-ingreseString: 		.asciiz "\nIngrese un nuevo titulo: "
-
+msj_listar: .asciiz "\nEstos son los elementos de la lista:\n\n"
+	
 slist: 			.word 0  # Lista de nodos libres
 cclist: 		.word 0  # puntero a lista de categorías
 wclist: 		.word 0  # puntero a lista de trabajo (categoría actual)
@@ -319,26 +319,137 @@ _borrar_cat:
     jr			$ra
 
 new_object:
-# Implementar la lógica para listar objetos de la categoría
-    la      $a0, successMsg
-    li      $v0, 4
-    syscall
+    addi    $sp, $sp, -8
+    sw      $ra, 4($sp)
+    sw      $s0, 0($sp)
+    
+    lw      $t0, wclist        # $t0 = selec
+    
+    beqz    $t0, _agregar_obj  # si no hay nodo seleccionado, volver al menu
+    
+    la      $s0, 4($t0)        # $s0 = selec->objetos
+    
+    jal     read_string        # leer nombre de objeto
+    
+    move    $a0, $s0
+    jal     add_node            # añadir nodo a lista de objetos en categoria
+    
+    move    $s1, $v0           # $s1 = newnode
+    
+    jal     smalloc
+    sw      $v0, 8($s1)        # asignar espacio a nuevo->nombre
+    
+    la      $a0, buffer
+    move    $a1, $v0
+    # Copiar string bit por bit
+    addi    $t0, $zero, 0      # Inicializar índice
+copy_loop:
+    lb      $t1, 0($a0)        # Cargar byte del buffer
+    sb      $t1, 0($a1)        # Almacenar byte en destino
+    beq     $t1, $zero, copy_done # Si es el byte nulo, terminar
+    addi    $a0, $a0, 1        # Incrementar puntero del buffer
+    addi    $a1, $a1, 1        # Incrementar puntero del destino
+    j       copy_loop          # Repetir el ciclo
+copy_done:
+    
+    beqz    $s0, empty_object_list       # si la lista es vacia, ir a l_vacia
+    
+    lw      $t0, 0($s1)        # $t0 = nuevo->anterior
+    lw      $t0, 8($t0)        # $t0 = nuevo->anterior->id
+    addi    $t0, $t0, 1        # $t0 += 1
+    
+    sw      $t0, 8($s1)        # nuevo->id = $t0
+    
+    j       _agregar_obj
+    
+empty_object_list:                       # el ID del primer objeto es 1
+    li      $t0, 1             # Asignar ID = 1
+    sw      $t0, 4($s1)        # nuevo->id = 1
+    
+    j       _agregar_obj
+    
+_agregar_obj:
+    lw      $s0, 0($sp)
+    lw      $ra, 4($sp)
+    addi    $sp, $sp, 8
+    
     jr      $ra
+    
+read_string:
+    addiu   $sp, $sp, -4       # Reservar espacio en la pila
+    sw      $ra, 4($sp)        # Guardar el valor de $ra en la pila
+    
+    la      $a0, objectNameMsg # Cargar la dirección del mensaje objectNameMsg en $a0
+    li      $v0, 4             # Código de syscall para imprimir cadena
+    syscall                    # Llamar a la syscall
+    
+    li      $v0, 8             # Código de syscall para leer cadena
+    la      $a0, buffer        # Cargar la dirección del buffer en $a0
+    li      $a1, 128           # Tamaño máximo de la cadena
+    syscall                    # Llamar a la syscall
+    
+    lw      $ra, 4($sp)        # Restaurar el valor de $ra desde la pila
+    addiu   $sp, $sp, 4        # Liberar espacio en la pila
+    
+    jr      $ra                # Retornar de la subrutina
+
 
 
 show_objects:
-    # Implementar la lógica para listar objetos de la categoría
-    la      $a0, successMsg
-    li      $v0, 4
-    syscall
-    jr      $ra
+    addi    $sp, $sp, -8
+    sw      $ra, 4($sp)
+    sw      $s0, 0($sp)
+    
+    lw      $t0, wclist        		# $t0 = nodo seleccionado
+    beqz    $t0, show_objects_exit   	# si no hay nodo seleccionado, volver al menu
+    
+    lw      $s0, 4($t0)        		# $s0 = dir al primer nodo
+    beqz    $s0, show_objects_exit   	# si hay nodo seleccionado pero sin lista de objetos, volver al menu
+    
+    move    $t0, $s0           		# $t0 = nodo index
+    
+    la      $a0, msj_listar
+    jal     print_string
+    
+    beqz    $s0, show_objects_exit   	# Si la lista es vacia, volver
 
-delete_object:
-    # Implementar la lógica para borrar objeto de la categoría
-    la      $a0, successMsg
+listar_obj_loop:
+    lw      $a0, 4($t0)
+    jal     print_int
+    
+    li      $a0, '.'
+    jal     print_char
+    
+    lw      $a0, 8($t0)
+    jal     print_string
+    
+    lw      $t0, 12($t0)
+    beq     $t0, $s0, show_objects_exit
+    
+    j       listar_obj_loop
+show_objects_exit:
+    lw      $s0, 0($sp)
+    lw      $ra, 4($sp)
+    addi    $sp, $sp, 8
+    
+    jr       $ra
+    
+print_string:
+    # Asumimos que $a0 contiene la dirección de la cadena
     li      $v0, 4
     syscall
     jr      $ra
+    
+print_int:
+    li			$v0, 1
+    syscall
+    jr			$ra
+    
+print_char:
+    li			$v0, 11
+    syscall
+    jr			$ra
+
 
 exit:
     # Salir del programa
