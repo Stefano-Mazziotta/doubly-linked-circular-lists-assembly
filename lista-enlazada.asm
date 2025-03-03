@@ -280,53 +280,63 @@ no_categories:
     jr      	$ra
 
 delete_category:
-		
-    addi 		$sp, $sp, -8
-    sw 			$ra, 4($sp)
-    sw			$s0, 0($sp)
-    
-    lw			$s0, wclist			# Guardar nodo seleccionado en $s0
-    lw			$s1, cclist			# Guardar lista en $s1
-    
-    beqz		$s0, _borrar_cat	# si es vacia, volver
-    
-    lw			$t0, 0($s0)		# Guardar en $t0 la dir al nodo anterior
-    lw			$t1, 12($s0)		# Guardar en $t1 la dir al nodo siguiente
-    sw			$t0, 0($t1)		# $t1->ant = $t0
-    sw			$t1, 12($t0)		# $t0->sig = $t1
-    move		$s2, $t0			# Guardar valor de nodo->ant en s2
-    move		$s3, $t1			# Guardar valor de nodo->sig en s3
-    
-    lw			$a0, 8($s0)
-    jal			sfree				# liberar espacio del string 
-    move		$a0, $s0			
-    jal			sfree				# liberar espacio del nodo
-    
-    bne			$s0, $s1, borrar_noprim		# si no es el primero de la lista, ir a borrar_noprim
-    bne			$s2, $s3, borrar_prim		# si no es el unico elemento de la lista, ir a borrar_prim
-    
-    
-    sw			$0, wclist
-    sw			$0, cclist
-    
-    j 			_borrar_cat
-		
-		
-borrar_prim:
-    sw			$t1, cclist
-    j 			_borrar_cat
-		
-borrar_noprim:	
-    sw			$t1, wclist
-	
-	
-_borrar_cat:
-    lw			$s0, 0($sp)
-    lw 			$ra, 4($sp)
-    addi 		$sp, $sp, 8
-    
-    jr			$ra
+    addi        $sp, $sp, -8
+    sw          $ra, 4($sp)
+    sw          $s0, 0($sp)
 
+    lw          $s0, wclist        # Nodo seleccionado en $s0
+    lw          $s1, cclist        # Primer nodo de la lista en $s1
+
+    beqz        $s1, _borrar_cat   # Si la lista está vacía, volver
+
+    lw          $t0, 0($s0)        # $t0 = nodo->anterior
+    lw          $t1, 12($s0)       # $t1 = nodo->siguiente
+
+    # Caso 1: Nodo único en la lista
+    beq         $s0, $t1, nodo_unico
+
+    # Actualizar los punteros de los nodos adyacentes
+    sw          $t0, 0($t1)        # $t1->anterior = $t0
+    sw          $t1, 12($t0)       # $t0->siguiente = $t1
+
+    # Si el nodo a borrar es el primero de la lista, actualizar cclist
+    beq         $s0, $s1, actualizar_cclist
+
+    # Si el nodo a borrar es el nodo seleccionado (wclist), actualizar wclist
+    beq         $s0, $s0, actualizar_wclist
+
+    j           liberar_nodo
+
+# Caso 1: Nodo único en la lista
+nodo_unico:
+    sw          $zero, wclist
+    sw          $zero, cclist
+    j           liberar_nodo
+
+# Actualizar el primer nodo de la lista (cclist)
+actualizar_cclist:
+    sw          $t1, cclist        # Nuevo primer nodo
+    sw		$t1, wclist
+    j           liberar_nodo
+
+# Actualizar el nodo seleccionado (wclist)
+actualizar_wclist:
+    sw          $t1, wclist        # Nuevo nodo seleccionado
+    j           liberar_nodo
+
+# Liberar memoria del nodo y del string asociado
+liberar_nodo:
+    lw          $a0, 8($s0)
+    jal         sfree               # Liberar memoria del string
+
+    move        $a0, $s0
+    jal         sfree               # Liberar memoria del nodo
+
+_borrar_cat:
+    lw          $s0, 0($sp)
+    lw          $ra, 4($sp)
+    addi        $sp, $sp, 8
+    jr          $ra
 new_object:
     addi    $sp, $sp, -8
     sw      $ra, 4($sp)
