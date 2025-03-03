@@ -139,10 +139,14 @@ select_next_category:
     
     sw      	$t2, wclist
 
+    move	$t3, $ra
     la      	$a0, successMsg
-    li    	$v0, 4
-    syscall
+    jal		print_string
     
+    lw      	$a0, 8($t2)
+    jal		print_string
+    
+    move	$ra, $t3	
     jr      	$ra
     
 # pasar a la categoría anterior
@@ -159,14 +163,19 @@ select_previous_category:
     
     sw      	$t2, wclist
 
+    move	$t3, $ra
     la      	$a0, successMsg
-    li    	$v0, 4
-    syscall
+    jal		print_string
     
+    lw      	$a0, 8($t2)
+    jal		print_string
+    
+    move	$ra, $t3	
     jr      	$ra
 
 
 error_select_no_categories:
+
     la      	$a0, error            	# Cargar el mensaje de error
     li      	$v0, 4                	# Código de syscall para imprimir cadena
     syscall
