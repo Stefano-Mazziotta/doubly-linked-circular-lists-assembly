@@ -1,5 +1,5 @@
 .data
-menu: 			.ascii "Colecciones de objetos categorizados\n"
+menu: 			.ascii "\nColecciones de objetos categorizados\n"
             		.ascii "====================================\n"
             		.ascii "1-Nueva categoria\n"
             		.ascii "2-Siguiente categoria\n"
@@ -24,7 +24,7 @@ msj_listar: .asciiz "\nEstos son los elementos de la lista:\n\n"
 slist: 			.word 0  # Lista de nodos libres
 cclist: 		.word 0  # puntero a lista de categorías
 wclist: 		.word 0  # puntero a lista de trabajo (categoría actual)
-buffer: 		.space 16
+
 scheduler: 		.space 32  # Espacio para el vector de funciones del scheduler
 
 .text
@@ -99,6 +99,10 @@ sbrk:
     li		$a0, 16  # Tamaño del nodo (4 palabras)
     li 		$v0, 9  # Código de syscall para sbrk
     syscall  
+    
+    li      $t1, 0       # Cargar 0 en $t1 (NULL)
+    sw      $t1, 4($v0)  # Inicializar el segundo word en 0
+    
     jr 		$ra  # Retornar de la subrutina
 
 sfree:
@@ -116,10 +120,12 @@ new_category:
     la 		$a0, cclist  # Cargar la dirección de la lista de categorías en $a0
     li 		$a1, 0  # Establecer $a1 en NULL
     jal 	add_node  # Llamar a la subrutina addnode
+    sw		$0, 4($v0) #node->objetos = null
     lw 		$t0, wclist  # Cargar la dirección de la lista de trabajo en $t0
     bnez 	$t0, new_category_end  # Si la lista de trabajo no está vacía, saltar a newcategory_end
     sw 		$v0, wclist  # Actualizar la lista de trabajo con la nueva categoría
     sw 		$v0, cclist  # Establecer la nueva categoría como la primera en la lista
+    
 new_category_end:
     lw 		$ra, 4($sp)  # Restaurar el valor de $ra desde la pila
     addiu	$sp, $sp, 4  # Liberar espacio en la pila
@@ -338,84 +344,75 @@ _borrar_cat:
     addi        $sp, $sp, 8
     jr          $ra
 new_object:
-    addi    $sp, $sp, -8
-    sw      $ra, 4($sp)
-    sw      $s0, 0($sp)
-    
-    lw      $t0, wclist        # $t0 = selec
-    
-    beqz    $t0, _agregar_obj  # si no hay nodo seleccionado, volver al menu
-    
-    la      $s0, 4($t0)        # $s0 = selec->objetos
-    
-    jal     read_string        # leer nombre de objeto
-    
-    move    $a0, $s0
-    jal     add_node            # añadir nodo a lista de objetos en categoria
-    
-    move    $s1, $v0           # $s1 = newnode
-    
-    jal     smalloc
-    sw      $v0, 8($s1)        # asignar espacio a nuevo->nombre
-    
-    la      $a0, buffer
-    move    $a1, $v0
-    # Copiar string bit por bit
-    addi    $t0, $zero, 0      # Inicializar índice
-copy_loop:
-    lb      $t1, 0($a0)        # Cargar byte del buffer
-    sb      $t1, 0($a1)        # Almacenar byte en destino
-    beq     $t1, $zero, copy_done # Si es el byte nulo, terminar
-    addi    $a0, $a0, 1        # Incrementar puntero del buffer
-    addi    $a1, $a1, 1        # Incrementar puntero del destino
-    j       copy_loop          # Repetir el ciclo
-copy_done:
-    
-    beqz    $s0, empty_object_list       # si la lista es vacia, ir a l_vacia
-    
-    lw      $t0, 0($s1)        # $t0 = nuevo->anterior
-    lw      $t0, 8($t0)        # $t0 = nuevo->anterior->id
-    addi    $t0, $t0, 1        # $t0 += 1
-    
-    sw      $t0, 8($s1)        # nuevo->id = $t0
-    
-    j       _agregar_obj
-    
-empty_object_list:                       # el ID del primer objeto es 1
-    li      $t0, 1             # Asignar ID = 1
-    sw      $t0, 4($s1)        # nuevo->id = 1
-    
-    j       _agregar_obj
-    
-_agregar_obj:
-    lw      $s0, 0($sp)
-    lw      $ra, 4($sp)
-    addi    $sp, $sp, 8
-    
+    # Guardar el registro de retorno
+    addi    $sp, $sp, -4
+    sw      $ra, 0($sp)
+
+    # Comprobar si hay un nodo seleccionado
+    lw      $t0, wclist          # $t0 = nodo seleccionado
+    beqz    $t0, error_501       # Si no hay nodo seleccionado, ir a error
+
+    # Cargar la dirección de la lista de objetos de la categoría
+    la      $t6, 8($t0)          # $t6 = category->objects
+
+    # Obtener el nombre del objeto
+    la      $a0, objectNameMsg   # Mensaje para el nombre del objeto
+    jal     get_block            # Llamar a get_block
+    move    $s5, $v0             # $s5 = nombre del objeto
+
+    # Asignar memoria para el nuevo nodo
+    jal     smalloc              # Llamar a smalloc
+    move    $s6, $v0             # $s6 = dirección del nuevo nodo
+    sw      $s5, 8($s6)          # Establecer el nombre en el nuevo nodo
+
+    # Verificar si la lista está vacía
+    beqz    $t6, add_obj_empty_list
+
+add_obj_to_end:
+    # Agregar el nodo al final de la lista
+    lw      $t1, 0($t6)          # $t1 = último nodo de la lista
+    sw      $t1, 0($s6)          # nuevo->prev = último nodo
+    sw      $t6, 12($s6)         # nuevo->next = primer nodo
+    sw      $s6, 12($t1)         # último->next = nuevo
+    sw      $s6, 0($t6)          # primer->prev = nuevo
+
+    # Asignar un ID incrementado al nuevo nodo
+    lw      $t7, 4($t1)          # $t7 = id del último nodo
+    addi    $t4, $t7, 1          # $t4 = nuevo id
+    sw      $t4, 4($s6)          # nuevo->id = $t4
+
+    j       agregar_obj_return
+
+add_obj_empty_list:
+    # Si la lista está vacía, agregar el nodo como único elemento
+    sw      $s6, 0($t6)          # primer nodo de la lista
+    sw      $s6, 12($s6)         # nuevo->next = sí mismo
+    sw      $s6, 0($s6)          # nuevo->prev = sí mismo
+    li      $t0, 1               # ID inicial = 1
+    sw      $t0, 4($s6)          # nuevo->id = 1
+
+agregar_obj_return:
+    # Restaurar el registro de retorno y regresar
+    lw      $ra, 0($sp)
+    addi    $sp, $sp, 4
     jr      $ra
-    
-read_string:
-    addiu   $sp, $sp, -4       # Reservar espacio en la pila
-    sw      $ra, 4($sp)        # Guardar el valor de $ra en la pila
-    
-    la      $a0, objectNameMsg # Cargar la dirección del mensaje objectNameMsg en $a0
-    li      $v0, 4             # Código de syscall para imprimir cadena
-    syscall                    # Llamar a la syscall
-    
-    li      $v0, 8             # Código de syscall para leer cadena
-    la      $a0, buffer        # Cargar la dirección del buffer en $a0
-    li      $a1, 128           # Tamaño máximo de la cadena
-    syscall                    # Llamar a la syscall
-    
-    lw      $ra, 4($sp)        # Restaurar el valor de $ra desde la pila
-    addiu   $sp, $sp, 4        # Liberar espacio en la pila
-    
-    jr      $ra                # Retornar de la subrutina
+
+error_501:
+    # Imprimir mensaje de error y código 501
+    la      $a0, error
+    li      $v0, 4                # syscall para imprimir cadena
+    syscall
+
+    li      $a0, 501              # Código de error 501
+    li      $v0, 1                # syscall para imprimir entero
+    syscall
+
+    j       agregar_obj_return
+
 
 show_objects:
-    addi    $sp, $sp, -8
+    addi    $sp, $sp, -4
     sw      $ra, 4($sp)
-    sw      $s0, 0($sp)
     
     lw      $t0, wclist        		# $t0 = nodo seleccionado
     beqz    $t0, show_objects_exit   	# si no hay nodo seleccionado, volver al menu
@@ -445,9 +442,8 @@ listar_obj_loop:
     
     j       listar_obj_loop
 show_objects_exit:
-    lw      $s0, 0($sp)
     lw      $ra, 4($sp)
-    addi    $sp, $sp, 8
+    addi    $sp, $sp, 4
     
     jr       $ra
     
@@ -548,7 +544,10 @@ exit:
     # Salir del programa
     li      $v0, 10
     syscall
-    
+
+# a0: list address        
+# a1: NULL if category, node address if object        
+# v0: node address added
 add_node:
     addi 	$sp, $sp, -8 # Reservar espacio en la pila
     sw 		$ra, 8($sp)  # Guardar el valor de $ra en la pila
@@ -559,7 +558,7 @@ add_node:
     lw 		$a0, 4($sp)  # Restaurar el valor de $a0 desde la pila
     lw	 	$t0, ($a0)   # Cargar la dirección del primer nodo en $t0
     beqz 	$t0, add_node_empty_list  # Si la lista está vacía, saltar a addnode_empty_list
-
+    
 add_node_to_end:
     lw 		$t1, 12($t0)  # Cargar la dirección del último nodo en $t1
     sw 		$t1, 0($v0)  # Establecer el puntero anterior del nuevo nodo
@@ -608,6 +607,8 @@ delete_node_exit:
     addi	$sp, $sp, 8  # Liberar espacio en la pila
     jr		$ra  # Retornar de la subrutina
 
+# a0: msg to ask        
+# v0: block address allocated with string
 get_block:
     addi	$sp, $sp, -4  # Reservar espacio en la pila
     sw		$ra, 4($sp)  # Guardar el valor de $ra en la pila
