@@ -19,8 +19,9 @@ selectedCategoryMsg:	.asciiz "\nSe ha seleccionado la categoria:"
 objectIdMsg: 		.asciiz "\nIngrese el ID del objeto a eliminar: "
 objectNameMsg: 		.asciiz "\nIngrese el nombre de un objeto: "
 successMsg: 		.asciiz "La operación se realizo con exito\n\n"
-msj_listar: .asciiz "\nEstos son los elementos de la lista:\n\n"
-	
+msj_listar: 		.asciiz "\nEstos son los elementos de la lista:\n\n"
+notFoundMsg:		.asciiz "\n NotFoundObject \n"
+
 slist: 			.word 0  # Lista de nodos libres
 cclist: 		.word 0  # puntero a lista de categorías
 wclist: 		.word 0  # puntero a lista de trabajo (categoría actual)
@@ -472,74 +473,84 @@ show_objects_exit:
     jr       $ra
     
 delete_object:
-    addi    $sp, $sp, -8
+    addi    $sp, $sp, -4
     sw      $ra, 4($sp)
-    sw      $s0, 0($sp)
     
-    lw      $s2, wclist          # $s2 = nodo seleccionado
-    
-    beqz    $s2, delete_object_exit     # si el nodo seleccionado es vacio, volver al menu
-    
-    lw      $s0, 4($s2)          # $s0 = dir al primer nodo
-    
-    beqz    $s0, delete_object_exit     # si hay nodo seleccionado, pero su lista de objetos es vacia, volver al menu
-    
-    move    $t0, $s0             # $t0 = nodo index
-    
-    beqz    $s0, delete_object_exit     # Si la lista es vacia, volver
-    
-    la      $a0, objectIdMsg
+    lw      $s1, cclist          # Cargar la lista de objetos
+    beqz    $s1, error_701        # Error si la lista es nula
+
+    lw      $s2, wclist          # Nodo seleccionado
+    beqz    $s2, delete_object_exit  # Si no hay nodo seleccionado, salir
+
+    lw      $s0, 4($s2)          # Primer nodo de la lista de objetos
+    beqz    $s0, delete_object_exit  # Si la lista de objetos está vacía, salir
+
+    la      $a0, objectIdMsg     # Solicitar ID del objeto
     jal     print_string
 
-    jal     read_word
+    jal     read_word            # Leer el ID
     move    $t1, $v0
-    
-loop_borrar_obj:
-    lw      $t2, 8($t0)
-    beq     $t1, $t2, _loop_borrar_obj
-    
-    lw      $t0, 12($t0)
-    
-    beq     $t0, $s0, delete_object_exit
 
-    j       loop_borrar_obj
+    move    $t0, $s0             # Inicializar el puntero al nodo actual
 
-_loop_borrar_obj:
-    move    $s1, $t0             # Guardar nodo a borrar en $s1
-    lw      $t0, 0($s1)          # Guardar en $t0 la dir al nodo anterior
-    lw      $t1, 12($s1)         # Guardar en $t1 la dir al nodo siguiente
-    sw      $t0, 0($t1)          # $t1->ant = $t0
-    sw      $t1, 12($t0)         # $t0->sig = $t1
-    
-    move    $s3, $t0             # Guardar nodo->ant en $s3
-    move    $s4, $t1             # Guardar nodo->sig en $s4
-    
-    lw      $a0, 4($s1)
-    jal     sfree                # liberar espacio del string 
-    la      $a0, 8($s1)          
-    jal     sfree                # liberar espacio de ID
+find_object_loop:
+    lw      $t2, 4($t0)          # Cargar el ID del nodo actual
+    beq     $t1, $t2, delete_found  # Si el ID coincide, ir a borrar
 
-    move    $a0, $s1            
-    jal     sfree                # liberar espacio del nodo
+    lw      $t0, 12($t0)         # Siguiente nodo
+    beq     $t0, $s0, object_not_found  # Si vuelve al inicio, no se encontró el objeto
+
+    j       find_object_loop
+
+delete_found:
+    lw      	$t3, 0($t0)          # Nodo anterior
+    lw      	$t4, 12($t0)         # Nodo siguiente
+
+    sw      	$t3, 0($t4)          # Actualizar $t4->ant = $t3
+    sw      	$t4, 12($t3)         # Actualizar $t3->sig = $t4
     
-    bne     $s0, $s1, delete_object_exit       # si no es el primero de la lista, ir al final
-    bne     $s3, $s4, borrar_prim_obj    # si no es el unico elemento de la lista, ir a borrar_prim_obj
-    
-    sw      $0, 8($s2)                   # nodo_seleccionado->objetos = NULL
-    sw      $s2, wclist                  
-    
+    move	$s3, $t0
+    lw      	$a0, 8($s3)          # Liberar memoria del string
+    jal     	sfree                
+    la      	$a0, 4($s3)          # Liberar memoria del ID
+    jal     	sfree                
+    move    	$a0, $s3             # Liberar memoria del nodo
+    jal     	sfree                
+
+    # Si es el único nodo en la lista
+    beq     	$t3, $t4, clear_selected_node
+    # Si es el primer nodo de la lista
+    beq     	$s0, $t0, update_first_node
+
     j       delete_object_exit
-    
-borrar_prim_obj:
-    sw      $t1, 8($t0)                  # Si es el primero, ahora el siguiente es el primero
+
+clear_selected_node:
+    sw      $zero, 8($s2)        # nodo_seleccionado->objetos = NULL
+    sw      $s2, wclist          # Actualizar wclist
+    j       delete_object_exit
+
+update_first_node:
+    sw      $t4, 8($t3)          # Actualizar el primer nodo de la lista
+    j       delete_object_exit
+
+object_not_found:
+    la      $a0, notFoundMsg     # Cargar el mensaje "NotFound"
+    jal     print_string
+    j       delete_object_exit
+
+error_701:
+    la      $a0, error           # Mostrar mensaje de error
+    li      $v0, 4               
+    syscall
+
+    li      $a0, 701             # Código de error 701
+    li      $v0, 1               
+    syscall
 
 delete_object_exit:
-    lw      $s0, 0($sp)
     lw      $ra, 4($sp)
-    addi    $sp, $sp, 8
-    
-    jr       $ra
-    
+    addi    $sp, $sp, 4
+    jr      $ra    
 print_string:
     # Asumimos que $a0 contiene la dirección de la cadena
     li      $v0, 4
