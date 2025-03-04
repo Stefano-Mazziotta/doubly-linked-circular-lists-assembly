@@ -345,57 +345,60 @@ _borrar_cat:
     jr          $ra
 new_object:
     # Guardar el registro de retorno
-    addi    $sp, $sp, -4
-    sw      $ra, 0($sp)
+    addi    	$sp, $sp, -4
+    sw      	$ra, 4($sp)
 
     # Comprobar si hay un nodo seleccionado
-    lw      $t0, wclist          # $t0 = nodo seleccionado
-    beqz    $t0, error_501       # Si no hay nodo seleccionado, ir a error
-
-    # Cargar la dirección de la lista de objetos de la categoría
-    la      $t6, 8($t0)          # $t6 = category->objects
+    lw      	$t0, wclist          # $t0 = nodo seleccionado
+    beqz    	$t0, error_501       # Si no hay nodo seleccionado, ir a error
 
     # Obtener el nombre del objeto
-    la      $a0, objectNameMsg   # Mensaje para el nombre del objeto
-    jal     get_block            # Llamar a get_block
-    move    $s5, $v0             # $s5 = nombre del objeto
+    la      	$a0, objectNameMsg   # Mensaje para el nombre del objeto
+    jal     	get_block            # Llamar a get_block
+    move    	$s5, $v0             # $s5 = nombre del objeto
 
     # Asignar memoria para el nuevo nodo
-    jal     smalloc              # Llamar a smalloc
-    move    $s6, $v0             # $s6 = dirección del nuevo nodo
-    sw      $s5, 8($s6)          # Establecer el nombre en el nuevo nodo
-
+    jal     	smalloc              # Llamar a smalloc
+    move    	$s6, $v0             # $s6 = dirección del nuevo nodo
+    sw      	$s5, 8($s6)          # Establecer el nombre en el nuevo nodo
+    
+    lw      	$t0, wclist
+    lw      	$t1, 4($t0)          # $t1 = category->objects
     # Verificar si la lista está vacía
-    beqz    $t6, add_obj_empty_list
+    beqz    	$t1, add_obj_empty_list
 
 add_obj_to_end:
     # Agregar el nodo al final de la lista
-    lw      $t1, 0($t6)          # $t1 = último nodo de la lista
-    sw      $t1, 0($s6)          # nuevo->prev = último nodo
-    sw      $t6, 12($s6)         # nuevo->next = primer nodo
-    sw      $s6, 12($t1)         # último->next = nuevo
-    sw      $s6, 0($t6)          # primer->prev = nuevo
+    lw      	$t2, 0($t1)          # $t2 = último nodo de la lista
+    sw      	$t2, 0($s6)          # nuevo->prev = último nodo
+    sw      	$t1, 12($s6)         # nuevo->next = primer nodo
+    sw      	$s6, 12($t2)         # último->next = nuevo
+    sw      	$s6, 0($t1)          # primer->prev = nuevo
 
     # Asignar un ID incrementado al nuevo nodo
-    lw      $t7, 4($t1)          # $t7 = id del último nodo
-    addi    $t4, $t7, 1          # $t4 = nuevo id
-    sw      $t4, 4($s6)          # nuevo->id = $t4
-
-    j       agregar_obj_return
+    lw      	$t3, 4($t2)          # $t7 = id del último nodo
+    addi    	$t3, $t3, 1          # $t3 = nuevo id
+    sw      	$t3, 4($s6)          # nuevo->id = $t4
+    # Restaurar el registro de retorno y regresar
+    la		$a0, successMsg
+    jal		print_string
+    j       	agregar_obj_return
 
 add_obj_empty_list:
     # Si la lista está vacía, agregar el nodo como único elemento
-    sw      $s6, 0($t6)          # primer nodo de la lista
-    sw      $s6, 12($s6)         # nuevo->next = sí mismo
-    sw      $s6, 0($s6)          # nuevo->prev = sí mismo
-    li      $t0, 1               # ID inicial = 1
-    sw      $t0, 4($s6)          # nuevo->id = 1
-
+    lw      	$t0, wclist		
+    sw      	$s6, 4($t0)          # primer nodo de la lista
+    sw      	$s6, 12($s6)         # nuevo->next = sí mismo
+    sw      	$s6, 0($s6)          # nuevo->prev = sí mismo
+    li      	$t2, 1               # ID inicial = 1
+    sw      	$t2, 4($s6)          # nuevo->id = 1
+        # Restaurar el registro de retorno y regresar
+    la		$a0, successMsg
+    jal		print_string
 agregar_obj_return:
-    # Restaurar el registro de retorno y regresar
-    lw      $ra, 0($sp)
-    addi    $sp, $sp, 4
-    jr      $ra
+    lw      	$ra, 4($sp)
+    addi    	$sp, $sp, 4
+    jr      	$ra
 
 error_501:
     # Imprimir mensaje de error y código 501
@@ -411,36 +414,57 @@ error_501:
 
 
 show_objects:
-    addi    $sp, $sp, -4
-    sw      $ra, 4($sp)
+    addi    	$sp, $sp, -4
+    sw      	$ra, 4($sp)
     
-    lw      $t0, wclist        		# $t0 = nodo seleccionado
-    beqz    $t0, show_objects_exit   	# si no hay nodo seleccionado, volver al menu
+    lw		$t0, cclist
+    beqz	$t0, error_601
     
-    lw      $s0, 4($t0)        		# $s0 = dir al primer nodo
-    beqz    $s0, show_objects_exit   	# si hay nodo seleccionado pero sin lista de objetos, volver al menu
+    lw      	$t1, wclist        		# $t0 = nodo seleccionado
+    beqz    	$t1, show_objects_exit   		# si no hay nodo seleccionado, volver al menu
     
-    move    $t0, $s0           		# $t0 = nodo index
+    lw     	$s0, 4($t1)        		# $s0 = dir al primer nodo
+    beqz    	$s0, error_602   	# si hay nodo seleccionado pero sin lista de objetos, volver al menu
     
-    la      $a0, msj_listar
-    jal     print_string
+    la      	$a0, msj_listar
+    jal     	print_string
+    move	$s1, $s0 # direccion inicial en s1
     
-    beqz    $s0, show_objects_exit   	# Si la lista es vacia, volver
-
 listar_obj_loop:
-    lw      $a0, 4($t0)
-    jal     print_int
-    
-    li      $a0, '.'
+    lw      $a0, 4($s0)      # Carga el primer valor
+    jal     print_int         # Imprime el entero
+
+    li      $a0, '-'          # Imprime un guion
     jal     print_char
+
+    lw      $a0, 8($s0)       # Carga la cadena
+    jal     print_string       # Imprime la cadena
+
+    lw      $t0, 12($s0)      # Carga el siguiente puntero
+    beq     $t0, $s1, show_objects_exit # Si vuelve al inicio, salir
+    move    $s0, $t0          # Avanza al siguiente nodo
+    j       listar_obj_loop    # Repetir el bucle
+
     
-    lw      $a0, 8($t0)
-    jal     print_string
+error_601:
+    la      	$a0, error            	# Cargar el mensaje de error
+    li      	$v0, 4                	# Código de syscall para imprimir cadena
+    syscall
+
+    li		$a0, 601           	# Código de error 601
+    li      	$v0, 1                	# Código de syscall para imprimir entero
+    syscall
+    j show_objects_exit
     
-    lw      $t0, 12($t0)
-    beq     $t0, $s0, show_objects_exit
-    
-    j       listar_obj_loop
+error_602:
+    la      	$a0, error            	# Cargar el mensaje de error
+    li      	$v0, 4                	# Código de syscall para imprimir cadena
+    syscall
+
+    li		$a0, 602        	# Código de error 602
+    li      	$v0, 1                	# Código de syscall para imprimir entero
+    syscall
+        
 show_objects_exit:
     lw      $ra, 4($sp)
     addi    $sp, $sp, 4
