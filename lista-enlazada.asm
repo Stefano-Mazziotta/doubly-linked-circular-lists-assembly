@@ -9,6 +9,7 @@ menu: 			.ascii "\nColecciones de objetos categorizados\n"
             		.ascii "6-Anexar objeto a la categoria actual\n"
             		.ascii "7-Listar objetos de la categoria\n"
  		        .ascii "8-Borrar objeto de la categoria\n"
+ 		        .ascii "9-Mostrar todos los objetos de todas las categorias \n" # MODIFIQUE
 			.ascii "0-Salir\n"
             		.asciiz "Ingrese la opcion deseada: "
             
@@ -26,7 +27,7 @@ slist: 			.word 0  # Lista de nodos libres
 cclist: 		.word 0  # puntero a lista de categorías
 wclist: 		.word 0  # puntero a lista de trabajo (categoría actual)
 
-scheduler: 		.space 32  # Espacio para el vector de funciones del scheduler
+scheduler: 		.space 36  # Espacio para el vector de funciones del scheduler
 
 .text
 main: 	
@@ -49,6 +50,8 @@ main:
     sw      $t1, 28($t7)
     la      $t1, delete_object 
     sw      $t1, 32($t7)
+    la      $t1, imprimir_todo 
+    sw      $t1, 36($t7)
     
     j show_menu
     
@@ -63,7 +66,7 @@ show_menu:
 
     # Verificar si la opción es válida (0-8)
     blt     $t2, 0, invalid_option
-    bgt     $t2, 8, invalid_option
+    bgt     $t2, 9, invalid_option
 
     # Calcular la dirección de la función a llamar
     sll     $t2, $t2, 2  	# Desplazar a la izquierda la opción 2 bits (equivale a multiplicar por 4)
@@ -658,3 +661,57 @@ get_block:
     lw		$ra, 4($sp)  # Restaurar el valor de $ra desde la pila
     addi	$sp, $sp, 4  # Liberar espacio en la pila
     jr		$ra  # Retornar de la subrutina
+ 
+ # MODIFIQUE: imprimir todos los objetos de todas las categorias
+ imprimir_todo:
+ 	addi	$sp, $sp, -4
+ 	sw	$ra, 4($sp)
+ 	
+ 	lw	$t0, cclist
+ 	beq     $t0, $zero, imprimir_todo_exit  # Si la lista está vacía, exit
+	
+	la	$t1, 4($t0) # dir al primer objeto
+	beq     $t1, $zero, imprimir_todo_exit  # Si la lista está vacía, exit
+	
+	move	$t3, $t0 # inicializar el inicio para el bucle
+	move	$t4, $t0 # guardar el primer nodo para detectar el ciclo
+	
+imprimir_todo_loop:
+	# 5. Marcar la categoría seleccionada con ">"
+    beq     	$t3, $t4, imprimir_todo_show_obj
+
+    lw      	$a0, 8($t3)  # Cargar el nombre del objeto
+    li      	$v0, 4       # Código de syscall para imprimir cadena
+    syscall
+    
+    # Mostrar nueva línea
+    la      	$a0, return
+    li      	$v0, 4
+    syscall
+
+    j       	imprimir_todo_next_obj
+
+imprimir_todo_show_obj:
+
+    lw      	$a0, 8($t3)  # Cargar el nombre del objeto
+    li      	$v0, 4       # Código de syscall para imprimir cadena
+    syscall
+    
+    # Mostrar nueva línea
+    la      	$a0, return
+    li      	$v0, 4
+    syscall
+
+    j       	imprimir_todo_next_obj
+
+imprimir_todo_next_obj:
+	lw     	$t3, 12($t3)  	# Cargar la dirección de la siguiente categoría en $t2
+    	beq    	$t3, $t4, imprimir_todo_exit  # Si hemos llegado al primer nodo, salir del ciclo
+    	j      	imprimir_todo_loop       # Continuar al siguiente nodo
+	
+ imprimir_todo_exit:
+ 	lw	$ra, 4($sp)  # Restaurar el valor de $ra desde la pila
+    	addi	$sp, $sp, 4  # Liberar espacio en la pila
+    	jr	$ra  # Retornar de la subrutina
+    	
+    	
